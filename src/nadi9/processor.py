@@ -5,6 +5,7 @@ import uuid
 from sqlalchemy.orm import Session
 
 from nadi9.audit.report import AuditReport, build_episode_audit_report
+from nadi9.budget import BudgetManager
 from nadi9.domain.enums import DecisionStatus
 from nadi9.domain.models import EpisodeLine, EvidenceRecord, SubtitleDecision, VerificationResult
 from nadi9.graph.state import create_initial_state
@@ -35,6 +36,13 @@ class EpisodeProcessor:
         db_session: Session | None = None,
         workflow: Nadi9Workflow | None = None,
     ) -> None:
+        if not isinstance(provider, BudgetedLLMProvider):
+            budget = BudgetManager(
+                max_model_calls=max_model_calls,
+                max_tool_calls=max_tool_calls,
+            )
+            provider = BudgetedLLMProvider(provider, budget=budget)
+
         self.provider = provider
         self.max_model_calls = max_model_calls
         self.max_tool_calls = max_tool_calls
@@ -106,7 +114,8 @@ class EpisodeProcessor:
                 payload={"episode_id": active_episode_id, "subtitles_count": len(episode_lines)},
             )
 
-        retriever = EvidenceRetriever(evidence)
+        budget_mgr = getattr(self.provider, "budget", None)
+        retriever = EvidenceRetriever(evidence, budget=budget_mgr)
         ranker = EvidenceRanker()
 
         processed_dec_by_sub: dict[str, Any] = {}
@@ -348,7 +357,8 @@ class EpisodeProcessor:
             overall_state["plan"] = targeted_plan
 
         # Selective re-execution for affected lines only
-        retriever = EvidenceRetriever(evidence)
+        budget_mgr = getattr(self.provider, "budget", None)
+        retriever = EvidenceRetriever(evidence, budget=budget_mgr)
         ranker = EvidenceRanker()
         new_decisions: list[SubtitleDecision] = []
 

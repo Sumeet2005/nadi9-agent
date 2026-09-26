@@ -1,3 +1,7 @@
+import pytest
+
+from nadi9.budget import BudgetManager
+from nadi9.domain.errors import BudgetExceededError
 from nadi9.domain.models import EvidenceRecord, Provenance
 from nadi9.ingestion import EvidenceRetriever
 
@@ -172,3 +176,17 @@ def test_invalid_min_score_is_rejected():
         assert "min_score" in str(exc)
     else:
         raise AssertionError("Expected ValueError")
+
+
+def test_retriever_consumes_tool_call_budget_and_raises():
+    evidence = [make_evidence("E-001", "formal greeting")]
+    budget = BudgetManager(max_model_calls=10, max_tool_calls=1)
+
+    retriever = EvidenceRetriever(evidence, budget=budget)
+    results = retriever.search("formal greeting")
+    assert len(results) == 1
+    assert budget.tool_calls_used == 1
+
+    with pytest.raises(BudgetExceededError) as exc_info:
+        retriever.search("formal greeting")
+    assert "Tool-call budget exceeded" in str(exc_info.value)

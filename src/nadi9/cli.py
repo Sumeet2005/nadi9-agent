@@ -5,9 +5,13 @@ from typing import Any
 import typer
 
 from nadi9.audit.review_service import ReviewError, ReviewManager
+from nadi9.budget import BudgetManager
+from nadi9.config import get_settings
 from nadi9.processor import EpisodeProcessor
+from nadi9.providers.budgeted import BudgetedLLMProvider
 from nadi9.providers.mock import MockLLMProvider
 from nadi9.providers.openai import OpenAIProvider
+from nadi9.storage.database import create_db_engine, create_session_factory, init_db
 
 app = typer.Typer(
     name="nadi9",
@@ -129,6 +133,7 @@ def run_command(
     typer.echo("Processing...")
 
     try:
+        settings = get_settings()
         p_name = provider_name.lower()
         if p_name == "mock":
             llm_provider = MockLLMProvider(responses=get_sample_mock_responses())
@@ -141,12 +146,34 @@ def run_command(
             )
             raise typer.Exit(code=1)
 
-        processor = EpisodeProcessor(provider=llm_provider)
-
-        report = processor.process_files(
-            episode_path=episodes,
-            evidence_path=evidence,
+        llm_provider = BudgetedLLMProvider(
+            llm_provider,
+            BudgetManager(
+                max_model_calls=settings.max_model_calls,
+                max_tool_calls=settings.max_tool_calls,
+            ),
         )
+
+        engine = create_db_engine(settings.database_url)
+        init_db(engine)
+        session_factory = create_session_factory(engine)
+
+        with session_factory() as session:
+            processor = EpisodeProcessor(
+                provider=llm_provider,
+                max_model_calls=settings.max_model_calls,
+                max_tool_calls=settings.max_tool_calls,
+                db_session=session,
+            )
+
+            report = processor.process_files(
+                episode_path=episodes,
+                evidence_path=evidence,
+            )
+
+        if any("budget" in str(err).lower() or "exceeded" in str(err).lower() for err in report.errors):
+            typer.echo(f"Error processing episodes: {report.errors[0]}", err=True)
+            raise typer.Exit(code=1)
 
         for decision in report.decisions:
             status_val = (

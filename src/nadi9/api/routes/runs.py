@@ -5,8 +5,11 @@ from sqlalchemy.orm import Session
 
 from nadi9.api.dependencies import get_db
 from nadi9.api.schemas import ProcessRunRequest, ReviewActionApiRequest, RunSummaryResponse
+from nadi9.budget import BudgetManager
+from nadi9.config import get_settings
 from nadi9.domain.models import EpisodeLine, EvidenceRecord
 from nadi9.processor import EpisodeProcessor
+from nadi9.providers.budgeted import BudgetedLLMProvider
 from nadi9.providers.mock import MockLLMProvider
 from nadi9.storage.repositories import DecisionRepository, ReviewRepository, RunRepository
 
@@ -29,6 +32,18 @@ def default_mock_provider() -> MockLLMProvider:
     )
 
 
+def get_budgeted_provider(provider: Any = None) -> BudgetedLLMProvider:
+    settings = get_settings()
+    base_provider = provider or default_mock_provider()
+    return BudgetedLLMProvider(
+        base_provider,
+        BudgetManager(
+            max_model_calls=settings.max_model_calls,
+            max_tool_calls=settings.max_tool_calls,
+        ),
+    )
+
+
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_run(
     req: ProcessRunRequest,
@@ -37,8 +52,11 @@ def create_run(
     """Execute end-to-end subtitle processing over inline records or file paths."""
 
     try:
+        settings = get_settings()
         processor = EpisodeProcessor(
-            provider=default_mock_provider(),
+            provider=get_budgeted_provider(),
+            max_model_calls=settings.max_model_calls,
+            max_tool_calls=settings.max_tool_calls,
             db_session=db,
         )
 
@@ -182,7 +200,13 @@ def approve_run_review(
 ) -> dict[str, Any]:
     """Approve a pending review item for a run and resume workflow execution."""
     item = _find_run_review_item(run_id, review_id, db)
-    processor = EpisodeProcessor(provider=default_mock_provider(), db_session=db)
+    settings = get_settings()
+    processor = EpisodeProcessor(
+        provider=get_budgeted_provider(),
+        max_model_calls=settings.max_model_calls,
+        max_tool_calls=settings.max_tool_calls,
+        db_session=db,
+    )
     try:
         final_decision = processor.resume_human_review(
             run_id=run_id,
@@ -212,7 +236,13 @@ def reject_run_review(
             detail="Rejection reason is required.",
         )
     item = _find_run_review_item(run_id, review_id, db)
-    processor = EpisodeProcessor(provider=default_mock_provider(), db_session=db)
+    settings = get_settings()
+    processor = EpisodeProcessor(
+        provider=get_budgeted_provider(),
+        max_model_calls=settings.max_model_calls,
+        max_tool_calls=settings.max_tool_calls,
+        db_session=db,
+    )
     try:
         final_decision = processor.resume_human_review(
             run_id=run_id,
@@ -243,7 +273,13 @@ def correct_run_review(
             detail="Corrected subtitle text is required.",
         )
     item = _find_run_review_item(run_id, review_id, db)
-    processor = EpisodeProcessor(provider=default_mock_provider(), db_session=db)
+    settings = get_settings()
+    processor = EpisodeProcessor(
+        provider=get_budgeted_provider(),
+        max_model_calls=settings.max_model_calls,
+        max_tool_calls=settings.max_tool_calls,
+        db_session=db,
+    )
     try:
         final_decision = processor.resume_human_review(
             run_id=run_id,
@@ -282,7 +318,13 @@ def resume_run_review(
         )
 
     item = _find_run_review_item(run_id, review_id, db)
-    processor = EpisodeProcessor(provider=default_mock_provider(), db_session=db)
+    settings = get_settings()
+    processor = EpisodeProcessor(
+        provider=get_budgeted_provider(),
+        max_model_calls=settings.max_model_calls,
+        max_tool_calls=settings.max_tool_calls,
+        db_session=db,
+    )
     try:
         final_decision = processor.resume_human_review(
             run_id=run_id,

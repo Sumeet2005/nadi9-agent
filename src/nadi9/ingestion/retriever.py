@@ -1,6 +1,7 @@
 import re
 from dataclasses import dataclass
 
+from nadi9.budget import BudgetManager
 from nadi9.domain.models import EvidenceRecord
 
 
@@ -18,8 +19,10 @@ class EvidenceRetriever:
     def __init__(
         self,
         evidence: list[EvidenceRecord],
+        budget: BudgetManager | None = None,
     ) -> None:
         self._evidence = list(evidence)
+        self._budget = budget
 
     @staticmethod
     def _tokenize(text: str) -> set[str]:
@@ -63,8 +66,13 @@ class EvidenceRetriever:
         *,
         top_k: int = 5,
         min_score: float = 0.0,
+        budget: BudgetManager | None = None,
     ) -> list[RetrievedEvidence]:
         """Return the highest-scoring evidence for a query."""
+
+        active_budget = budget or self._budget
+        if active_budget is not None:
+            active_budget.consume_tool_call()
 
         if top_k < 1:
             raise ValueError("top_k must be at least 1.")

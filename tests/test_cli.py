@@ -180,3 +180,31 @@ def test_cli_runs_list_and_show(tmp_path):
     show_missing = runner.invoke(app, ["runs", "show", "RUN-MISSING", "--db", str(db_file)])
     assert show_missing.exit_code != 0
     assert "not found" in show_missing.output
+
+
+def test_cli_run_persists_to_database(tmp_path, monkeypatch):
+    output_dir = tmp_path / "run-db-persistence"
+    db_file = tmp_path / "nadi9_cli_test.db"
+
+    monkeypatch.setenv("NADI9_DATABASE_URL", f"sqlite:///{db_file.resolve()}")
+
+    result = runner.invoke(
+        app,
+        [
+            "run",
+            "--episodes",
+            "data/episodes/sample_episode.jsonl",
+            "--evidence",
+            "data/evidence/sample_evidence.jsonl",
+            "--output",
+            str(output_dir),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Run completed." in result.output or "WAITING_FOR_REVIEW" in result.output
+
+    # Verify run record in database via CLI `runs list`
+    list_res = runner.invoke(app, ["runs", "list", "--db", str(db_file)])
+    assert list_res.exit_code == 0
+    assert "ep-001" in list_res.output or "EP001" in list_res.output or "run-" in list_res.output
