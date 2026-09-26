@@ -79,7 +79,7 @@ python -m nadi9 review approve --input sample_run --review-id REV-EP001-L002-1
 # Reject AI candidate subtitle with reason
 python -m nadi9 review reject --input sample_run --review-id REV-EP001-L003-1 --reason "Terminology mismatch"
 
-# Supply human correction (creates a LearnedRule for targeted replanning)
+# Supply human correction (creates a LearnedRule and updates learned_rules.json)
 python -m nadi9 review correct --input sample_run --review-id REV-EP001-L002-1 --text "Alvida, dosto!"
 ```
 
@@ -137,7 +137,7 @@ pytest
 ```
 
 **Verified Test Baseline**:
-- **194 passed, 0 failed**
+- **197 passed, 0 failed**
 - **2 third-party deprecation warnings** (Starlette `testclient` and LangGraph `allowed_objects`; these originate from external packages and are not test failures).
 
 ---
@@ -145,7 +145,7 @@ pytest
 ## Project Structure
 
 ```text
-E:\nadi9-agent\
+.
 ├── data/                       # Sample episodes and evidence JSONL datasets
 │   ├── episodes/
 │   └── evidence/
@@ -162,10 +162,11 @@ E:\nadi9-agent\
 │   ├── cli.py                  # Typer CLI application
 │   ├── config.py               # Pydantic Settings configuration management
 │   └── processor.py            # End-to-end episode pipeline processor
-├── tests/                      # Pytest suite (194 passing tests)
+├── tests/                      # Pytest suite
 ├── sample_run/                 # Generated sample run output package
 ├── ARCHITECTURE.md             # System architecture documentation
 ├── AI_COLLABORATION.md         # AI collaboration transparency report
+├── KNOWN_LIMITATIONS.md        # Technical trade-offs & limitations
 ├── Dockerfile                  # Production container Dockerfile
 ├── docker-compose.yml          # Docker compose orchestration
 └── pyproject.toml              # Build dependencies and project metadata

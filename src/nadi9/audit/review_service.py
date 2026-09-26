@@ -6,7 +6,7 @@ import uuid
 from pydantic import ValidationError
 
 from nadi9.domain.enums import DecisionStatus
-from nadi9.domain.models import HumanReviewAction, ReviewItem, SubtitleDecision
+from nadi9.domain.models import HumanReviewAction, LearnedRule, ReviewItem, SubtitleDecision
 
 
 class ReviewError(Exception):
@@ -39,6 +39,7 @@ class ReviewManager:
         self.decisions_file = self.run_dir / "decisions.json"
         self.report_file = self.run_dir / "report.json"
         self.actions_file = self.run_dir / "review_actions.json"
+        self.learned_rules_file = self.run_dir / "learned_rules.json"
 
         if not self.review_items_file.exists():
             raise RunArtifactError(
@@ -156,7 +157,7 @@ class ReviewManager:
         reason: str | None = None,
         actor: str = "human_reviewer",
     ) -> HumanReviewAction:
-        """Supply human-corrected subtitle text preserving original AI text in action log."""
+        """Supply human-corrected subtitle text, creating a LearnedRule and preserving action history."""
 
         if not text.strip():
             raise ValueError("Corrected text cannot be empty.")
@@ -177,6 +178,15 @@ class ReviewManager:
             + (f"Note: {reason.strip()}" if reason and reason.strip() else "")
         )
 
+        # Create a new LearnedRule derived from human review correction
+        learned_rule = LearnedRule(
+            rule_id=f"RULE-HITL-{uuid.uuid4().hex[:6]}",
+            category="human_correction",
+            statement=f"Subtitle '{decision.subtitle_id}' corrected from '{original_text}' to '{text.strip()}'.",
+            supporting_evidence=target_item.evidence_ids,
+            affected_subtitle_ids=[decision.subtitle_id],
+        )
+
         action = HumanReviewAction(
             action_id=f"ACT-{uuid.uuid4().hex[:8]}",
             review_id=review_id,
@@ -189,7 +199,7 @@ class ReviewManager:
             final_status=DecisionStatus.ACCEPTED,
         )
 
-        self._save_artifacts(review_items, decisions_by_sub, action)
+        self._save_artifacts(review_items, decisions_by_sub, action, new_rule=learned_rule)
         return action
 
     def _load_artifacts(
@@ -283,8 +293,9 @@ class ReviewManager:
         review_items: list[ReviewItem],
         decisions_by_sub: dict[str, SubtitleDecision],
         action: HumanReviewAction,
+        new_rule: LearnedRule | None = None,
     ) -> None:
-        """Atomic write update of review items, decisions, actions, and report."""
+        """Atomic write update of review items, decisions, actions, report, and learned_rules.json."""
 
         actions: list[dict[str, Any]] = []
         if self.actions_file.exists():
@@ -308,6 +319,19 @@ class ReviewManager:
         self.actions_file.write_text(
             json.dumps(actions, indent=2), encoding="utf-8"
         )
+
+        # Update learned_rules.json if a new LearnedRule is generated
+        if new_rule is not None:
+            existing_rules: list[dict[str, Any]] = []
+            if self.learned_rules_file.exists():
+                try:
+                    existing_rules = json.loads(self.learned_rules_file.read_text(encoding="utf-8"))
+                except Exception:
+                    existing_rules = []
+            existing_rules.append(new_rule.model_dump(mode="json"))
+            self.learned_rules_file.write_text(
+                json.dumps(existing_rules, indent=2), encoding="utf-8"
+            )
 
         if self.report_file.exists():
             try:

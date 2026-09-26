@@ -152,6 +152,15 @@ def test_review_manager_correct(tmp_path):
     assert decisions[0]["nadi9_text"] == "Human Corrected Subtitle Text."
     assert decisions[0]["status"] == "accepted"
 
+    # Verify learned_rules.json was updated with new LearnedRule
+    learned_rules_file = output_dir / "learned_rules.json"
+    assert learned_rules_file.exists()
+    learned_rules = json.loads(learned_rules_file.read_text(encoding="utf-8"))
+    assert len(learned_rules) == 1
+    assert learned_rules[0]["category"] == "human_correction"
+    assert "SUB-001" in learned_rules[0]["affected_subtitle_ids"]
+    assert "Human Corrected Subtitle Text." in learned_rules[0]["statement"]
+
 
 def test_review_manager_unknown_review_id(tmp_path):
     output_dir, _ = make_sample_run(tmp_path)
