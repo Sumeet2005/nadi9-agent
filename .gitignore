@@ -1,0 +1,37 @@
+# Python / Virtual Environment
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+ENV/
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Databases & SQLite
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment & Secrets
+.env
+.env.local
+
+# IDEs & Editors
+.vscode/
+.idea/
+*.swp
+
+# NADI9 Output Artifacts
+output/
+runs/
+
+# Generated runtime outputs
+outputs/
+
+# Python packaging metadata
+*.egg-info/

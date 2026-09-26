@@ -1,0 +1,29 @@
+[
+  {
+    "review_id": "REV-EP001-L002-1",
+    "subtitle_id": "EP001-L002",
+    "reason": "Decision requires human review due to verification or conflict check.",
+    "question": "Please resolve the conflicting evidence and confirm which interpretation should be used for this subtitle. Conflict IDs: CONFLICT-E-002-E-003.",
+    "evidence_ids": [
+      "E-002",
+      "E-003"
+    ],
+    "conflict_ids": [
+      "CONFLICT-E-002-E-003"
+    ],
+    "confidence": "medium",
+    "priority": "high",
+    "resolved": false
+  },
+  {
+    "review_id": "REV-EP001-L003-1",
+    "subtitle_id": "EP001-L003",
+    "reason": "Decision requires human review due to verification or conflict check.",
+    "question": "Please review the proposed translation because independent verification failed: No hypothesis or evidence available..",
+    "evidence_ids": [],
+    "conflict_ids": [],
+    "confidence": "low",
+    "priority": "medium",
+    "resolved": false
+  }
+]

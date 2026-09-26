@@ -1,0 +1,28 @@
+services:
+  nadi9-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nadi9-api-service
+    ports:
+      - "8000:8000"
+    environment:
+      - NADI9_DATABASE_URL=sqlite:////app/data/nadi9.db
+      - NADI9_CHECKPOINT_DB_PATH=/app/data/nadi9_checkpoints.db
+      - NADI9_MAX_BUDGET=10.0
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+    volumes:
+      - nadi9-data:/app/data
+      - nadi9-outputs:/app/outputs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
+volumes:
+  nadi9-data:
+  nadi9-outputs:
