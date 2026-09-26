@@ -33,3 +33,4 @@ class ReviewActionApiRequest(BaseModel):
     actor: str = "human_reviewer"
     reason: str | None = None
     text: str | None = None
+    affected_subtitle_ids: list[str] | None = None

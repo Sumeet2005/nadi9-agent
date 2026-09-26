@@ -289,6 +289,53 @@ def correct_run_review(
             reason=req.reason,
             actor=req.actor,
         )
+
+        other_affected = [sid for sid in (req.affected_subtitle_ids or []) if sid != item.subtitle_id]
+        if other_affected:
+            dec_repo = DecisionRepository(db)
+            all_decs = dec_repo.list_decisions_for_run(run_id)
+            if all_decs:
+                lines = [
+                    EpisodeLine(
+                        subtitle_id=d.subtitle_id,
+                        source_text=d.source_text,
+                        start_time=0.0,
+                        end_time=1.0,
+                    )
+                    for d in all_decs
+                ]
+                learned_rule = LearnedRule(
+                    rule_id=f"RULE-API-{uuid.uuid4().hex[:6]}",
+                    category="human_correction",
+                    statement=f"Human correction applied: prefer '{req.text.strip()}'",
+                    supporting_evidence=item.evidence_ids_json or [],
+                    affected_subtitle_ids=other_affected,
+                )
+                overall_state = {
+                    "run_id": run_id,
+                    "episode_id": lines[0].subtitle_id.split("-")[0] if lines else "ep-001",
+                    "subtitle_decisions": [
+                        SubtitleDecision(
+                            subtitle_id=d.subtitle_id,
+                            source_text=d.source_text,
+                            nadi9_text=d.nadi9_text,
+                            status=d.status,
+                            confidence=d.confidence,
+                            confidence_reason=d.confidence_reason,
+                            evidence_ids=d.evidence_ids_json or [],
+                        )
+                        for d in all_decs
+                    ],
+                    "evidence": [],
+                    "learned_rules": [],
+                }
+                processor.apply_rule_correction(
+                    overall_state=overall_state,
+                    new_rule=learned_rule,
+                    episode_lines=lines,
+                    evidence=[],
+                )
+
         return final_decision.model_dump(mode="json")
     except Exception as exc:
         raise HTTPException(

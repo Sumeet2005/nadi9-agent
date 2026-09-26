@@ -156,8 +156,12 @@ class ReviewManager:
         text: str,
         reason: str | None = None,
         actor: str = "human_reviewer",
+        affected_subtitle_ids: list[str] | None = None,
+        processor: Any | None = None,
+        episode_lines: list[Any] | None = None,
+        evidence: list[Any] | None = None,
     ) -> HumanReviewAction:
-        """Supply human-corrected subtitle text, creating a LearnedRule and preserving action history."""
+        """Supply human-corrected subtitle text, creating a LearnedRule and executing targeted selective replanning if multiple subtitles are affected."""
 
         if not text.strip():
             raise ValueError("Corrected text cannot be empty.")
@@ -178,13 +182,15 @@ class ReviewManager:
             + (f"Note: {reason.strip()}" if reason and reason.strip() else "")
         )
 
+        all_affected = list(dict.fromkeys([decision.subtitle_id] + (affected_subtitle_ids or [])))
+
         # Create a new LearnedRule derived from human review correction
         learned_rule = LearnedRule(
             rule_id=f"RULE-HITL-{uuid.uuid4().hex[:6]}",
             category="human_correction",
             statement=f"Subtitle '{decision.subtitle_id}' corrected from '{original_text}' to '{text.strip()}'.",
             supporting_evidence=target_item.evidence_ids,
-            affected_subtitle_ids=[decision.subtitle_id],
+            affected_subtitle_ids=all_affected,
         )
 
         action = HumanReviewAction(
@@ -198,6 +204,61 @@ class ReviewManager:
             original_nadi9_text=original_text,
             final_status=DecisionStatus.ACCEPTED,
         )
+
+        # Trigger selective targeted replanning if the rule affects other subtitles beyond the corrected subtitle
+        other_affected = [sid for sid in all_affected if sid != decision.subtitle_id]
+        if other_affected:
+            proc = processor
+            if proc is None:
+                from nadi9.processor import EpisodeProcessor
+                from nadi9.providers.mock import MockLLMProvider
+                proc = EpisodeProcessor(provider=MockLLMProvider())
+
+            lines = episode_lines
+            if not lines and self.report_file.exists():
+                try:
+                    report_data = json.loads(self.report_file.read_text(encoding="utf-8"))
+                    from nadi9.domain.models import EpisodeLine
+                    lines = [
+                        EpisodeLine(
+                            subtitle_id=d["subtitle_id"],
+                            source_text=d["source_text"],
+                            speaker=d.get("speaker", "Unknown"),
+                            scene_id=d.get("scene_id", "scene-01"),
+                            start_time=0.0,
+                            end_time=1.0,
+                        )
+                        for d in report_data.get("decisions", [])
+                    ]
+                except Exception:
+                    pass
+
+            ev_records = evidence or []
+
+            if lines:
+                overall_state = {
+                    "run_id": "run-corr",
+                    "episode_id": lines[0].subtitle_id.split("-")[0] if lines else "ep-001",
+                    "subtitle_decisions": list(decisions_by_sub.values()),
+                    "evidence": ev_records,
+                    "learned_rules": [],
+                }
+                replanning_rule = LearnedRule(
+                    rule_id=learned_rule.rule_id,
+                    category=learned_rule.category,
+                    statement=learned_rule.statement,
+                    supporting_evidence=learned_rule.supporting_evidence,
+                    affected_subtitle_ids=other_affected,
+                )
+                updated_state = proc.apply_rule_correction(
+                    overall_state=overall_state,
+                    new_rule=replanning_rule,
+                    episode_lines=lines,
+                    evidence=ev_records,
+                )
+                reprocessed_decs = updated_state.get("subtitle_decisions", [])
+                for d in reprocessed_decs:
+                    decisions_by_sub[d.subtitle_id] = d
 
         self._save_artifacts(review_items, decisions_by_sub, action, new_rule=learned_rule)
         return action

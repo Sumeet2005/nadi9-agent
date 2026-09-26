@@ -86,7 +86,11 @@ def correct_review_endpoint(
     try:
         manager = ReviewManager(run_dir)
         action = manager.correct(
-            review_id, text=req.text, reason=req.reason, actor=req.actor
+            review_id,
+            text=req.text,
+            reason=req.reason,
+            actor=req.actor,
+            affected_subtitle_ids=req.affected_subtitle_ids,
         )
         return action.model_dump(mode="json")
     except ReviewNotFoundError as exc:

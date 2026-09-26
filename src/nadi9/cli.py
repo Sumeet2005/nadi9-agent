@@ -401,13 +401,28 @@ def review_correct(
         "--actor",
         help="Identifier of human reviewer.",
     ),
+    affected: str | None = typer.Option(
+        None,
+        "--affected",
+        "-a",
+        help="Optional comma-separated list of additional affected subtitle IDs for targeted replanning.",
+    ),
 ) -> None:
-    """Provide human-corrected subtitle text for a review item."""
+    """Provide human-corrected subtitle text for a review item, with optional targeted selective replanning for affected subtitles."""
 
     try:
+        affected_ids = (
+            [s.strip() for s in affected.split(",") if s.strip()]
+            if affected
+            else None
+        )
         manager = ReviewManager(input_dir)
         action = manager.correct(
-            review_id=review_id, text=text, reason=reason, actor=actor
+            review_id=review_id,
+            text=text,
+            reason=reason,
+            actor=actor,
+            affected_subtitle_ids=affected_ids,
         )
 
         typer.echo(f"Review '{review_id}' corrected successfully.")

@@ -397,4 +397,11 @@ class EpisodeProcessor:
                         break
 
         overall_state["subtitle_decisions"] = final_decisions
+
+        if self.db_session and new_decisions:
+            dec_repo = DecisionRepository(self.db_session)
+            active_run_id = overall_state.get("run_id", "run-001")
+            for dec in new_decisions:
+                dec_repo.save_decision(active_run_id, dec)
+
         return overall_state
